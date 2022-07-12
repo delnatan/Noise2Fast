@@ -1,0 +1,13 @@
+__pycache__/
+**/__pycache__/
+*.py[cod]
+
+# MacOS folders
+**/.DS_Store
+.DS_Store
+
+*.so
+
+*.egg-info/
+*.egg
+
