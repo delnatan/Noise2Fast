@@ -9,6 +9,8 @@ setup(
     install_requires=[
         "numpy",
         "torch",
+		"tifffile",
+		"tqdm"
     ],
 )
 
