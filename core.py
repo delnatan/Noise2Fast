@@ -4,7 +4,7 @@ import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-
+from tqdm import tqdm
 
 class DoubleConv(nn.Module):
     """double 2d convolution with 3x3 kernel size"""
@@ -168,8 +168,8 @@ def denoise_stack(input_stack, device, **kwargs):
     Nstacks = np.prod(inputshape[:-2])
 
     # assume that the last two axes are for the Row x Column of 2d images
-    for n,nonsliceidx in enumerate(np.ndindex(inputshape[:-2])):
-        print(f"denoising ==> {100.0 * (n+1) / Nstacks: 0.2f}%...")
+    for nonsliceidx in tqdm(np.ndindex(inputshape[:-2]), total=Nstacks):
+        # print(f"denoising ==> {100.0 * (n+1) / Nstacks: 0.2f}%...")
         idxslices = nonsliceidx + (slice(None), slice(None),)
         slice2d = input_stack[idxslices].astype(np.float32)
         wrkframe = torch.from_numpy(slice2d).to(device)
