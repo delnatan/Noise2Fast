@@ -65,9 +65,16 @@ def even_odd_downsize(img):
 
 
 def denoise_frame(
-    input_frame: torch.Tensor, last_n_frames=100, verbose=True
+    input_frame: torch.Tensor, last_n_frames=100, verbose=False
 ) -> np.array:
-
+    """run denoising on a single 2D image
+    
+    Args:
+    input_frame (torch.Tensor): 2D image as pytorch Tensor type
+    last_n_frames (int): number of frames that will be averaged after validation
+    step has reached the best MSE score.
+    
+    """
     # normalize input image so that it ranges from [0,1]
     img_max = input_frame.max()
     img_min = input_frame.min()
@@ -147,7 +154,15 @@ def denoise_frame(
 
 
 def denoise_stack(input_stack, device, **kwargs):
-    
+    """denoise n-D image assuming the last two dimensions are rows and columns
+
+    Args:
+    input_stack (n-D numpy.array): multidimensional image to be denoised
+    device (torch.device): GPU or CPU device to run denoising on. Use 
+    torch.device("cuda") for NVIDIA GPU and torch.device("mps") for M1 GPU.
+
+
+    """
     inputshape = input_stack.shape
     output = np.zeros(inputshape, dtype=np.float32)
     Nstacks = np.prod(inputshape[:-2])
