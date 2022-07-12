@@ -1,7 +1,0 @@
-Metadata-Version: 2.1
-Name: Noise2Fast
-Version: 0.1.0
-Summary: an implementation of a single-shot image denoiser (Noise2Fast)
-Author: Daniel Elnatan
-Author-email: delnatan@ucdavis.edu
-License-File: LICENSE.txt

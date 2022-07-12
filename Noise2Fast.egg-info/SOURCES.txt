@@ -1,8 +1,0 @@
-LICENSE.txt
-core.py
-setup.py
-Noise2Fast.egg-info/PKG-INFO
-Noise2Fast.egg-info/SOURCES.txt
-Noise2Fast.egg-info/dependency_links.txt
-Noise2Fast.egg-info/requires.txt
-Noise2Fast.egg-info/top_level.txt
