@@ -195,7 +195,7 @@ def readtiff(fn):
         page = tif.pages[0]
         xres = page.tags["XResolution"].value
         dx = xres[1] / xres[0]
-        unit = pg.tags["ResolutionUnit"].value
+        unit = page.tags["ResolutionUnit"].value
     return data, dx, unit
 
 def writetiff(fn, arr, dxy):
