@@ -207,4 +207,4 @@ def writetiff(fn, arr, dxy):
         dxy (float): pixel size in micron
 
     """
-    tifffile.imwrite(fn, arr, resolution=(1/dxy, 1/dxy, 5))
+    tifffile.imwrite(fn, arr, resolution=(1/dxy, 1/dxy, 5), imagej=True, metadata={'unit': 'um', 'axes': 'TYX'})
