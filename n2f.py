@@ -2,7 +2,7 @@ import argparse
 import torch
 from tqdm import tqdm
 from tifffile import imread, imwrite
-from core import denoise_stack
+from core import denoise_stack, readtiff, writetiff
 from pathlib import Path
 
 def main():
@@ -33,9 +33,9 @@ def main():
     print(f":: Denoised images will be saved in {str(outputfolder)} ::")
 
     for f in tqdm(flist):
-        input_image = imread(f)
+        input_image, pixel_size = readtiff(f)
         denoised = denoise_stack(input_image, device, last_n_frames=args.n_postvalidation_frames)
-        imwrite(outputfolder / f"{f.stem}_denoised.tif", denoised)
+        writetiff(outputfolder / f"{f.stem}_denoised.tif", denoised, dxy)
 
 if __name__ == "__main__":
 
