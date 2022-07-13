@@ -33,9 +33,9 @@ def main():
     print(f":: Denoised images will be saved in {str(outputfolder)} ::")
 
     for f in tqdm(flist):
-        input_image, pixel_size = readtiff(f)
+        input_image, pixel_size, pixel_unit = readtiff(f)
         denoised = denoise_stack(input_image, device, last_n_frames=args.n_postvalidation_frames)
-        writetiff(outputfolder / f"{f.stem}_denoised.tif", denoised, dxy)
+        writetiff(outputfolder / f"{f.stem}_denoised.tif", denoised, pixel_size)
 
 if __name__ == "__main__":
 
