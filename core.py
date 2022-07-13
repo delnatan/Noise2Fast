@@ -26,6 +26,7 @@ class DoubleConv(nn.Module):
 
 class Denoiser(nn.Module):
     """simple convolutional neural network for denoising"""
+
     def __init__(self):
         super().__init__()
         self.conv1 = DoubleConv(1, 64)
@@ -70,12 +71,12 @@ def denoise_frame(
     input_frame: torch.Tensor, last_n_frames=100, verbose=False
 ) -> np.array:
     """run denoising on a single 2D image
-    
+
     Args:
     input_frame (torch.Tensor): 2D image as pytorch Tensor type
     last_n_frames (int): number of frames that will be averaged after validation
     step has reached the best MSE score.
-    
+
     """
     # normalize input image so that it ranges from [0,1]
     img_max = input_frame.max()
@@ -160,7 +161,7 @@ def denoise_stack(input_stack, device, **kwargs):
 
     Args:
     input_stack (n-D numpy.array): multidimensional image to be denoised
-    device (torch.device): GPU or CPU device to run denoising on. Use 
+    device (torch.device): GPU or CPU device to run denoising on. Use
     torch.device("cuda") for NVIDIA GPU and torch.device("mps") for M1 GPU.
 
 
@@ -172,18 +173,21 @@ def denoise_stack(input_stack, device, **kwargs):
     # assume that the last two axes are for the Row x Column of 2d images
     for nonsliceidx in tqdm(np.ndindex(inputshape[:-2]), total=Nstacks):
         # print(f"denoising ==> {100.0 * (n+1) / Nstacks: 0.2f}%...")
-        idxslices = nonsliceidx + (slice(None), slice(None),)
+        idxslices = nonsliceidx + (
+            slice(None),
+            slice(None),
+        )
         slice2d = input_stack[idxslices].astype(np.float32)
         wrkframe = torch.from_numpy(slice2d).to(device)
         output[idxslices] = denoise_frame(wrkframe)
-    
+
     print("")
     return output
 
 
 def readtiff(fn):
     """read tiff file and get pixel dimension
-    
+
     Args:
         fn (str): tif image filename
 
@@ -198,13 +202,20 @@ def readtiff(fn):
         unit = page.tags["ResolutionUnit"].value
     return data, dx, unit
 
+
 def writetiff(fn, arr, dxy):
     """save array as tiff file with a given pixel size in micron
-    
+
     Args:
         fn (str): filename
         arr (numpy nd-array): numpy array to be saved as tif file. Float64 data not supported
         dxy (float): pixel size in micron
 
     """
-    tifffile.imwrite(fn, arr, resolution=(1/dxy, 1/dxy, 5), imagej=True, metadata={'unit': 'um', 'axes': 'TYX'})
+    tifffile.imwrite(
+        fn,
+        arr,
+        resolution=(1 / dxy, 1 / dxy, 5),
+        imagej=True,
+        metadata={"unit": "um", "axes": "TYX"},
+    )
