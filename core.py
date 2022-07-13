@@ -4,7 +4,9 @@ import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import tifffile
 from tqdm import tqdm
+
 
 class DoubleConv(nn.Module):
     """double 2d convolution with 3x3 kernel size"""
@@ -178,4 +180,31 @@ def denoise_stack(input_stack, device, **kwargs):
     print("")
     return output
 
+
+def readtiff(fn):
+    """read tiff file and get pixel dimension
     
+    Args:
+        fn (str): tif image filename
+
+    Returns:
+        numpy array
+    """
+    data = tifffile.imread(fn)
+    with tifffile.TiffFile(fn) as tif:
+        page = tif.pages[0]
+        xres = page.tags["XResolution"].value
+        dx = xres[1] / xres[0]
+        unit = pg.tags["ResolutionUnit"].value
+    return data, dx, unit
+
+def writetiff(fn, arr, dxy):
+    """save array as tiff file with a given pixel size in micron
+    
+    Args:
+        fn (str): filename
+        arr (numpy nd-array): numpy array to be saved as tif file. Float64 data not supported
+        dxy (float): pixel size in micron
+
+    """
+    tifffile.imwrite(fn, arr, resolution=(1/dxy, 1/dxy, 5))
