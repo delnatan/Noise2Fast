@@ -185,37 +185,53 @@ def denoise_stack(input_stack, device, **kwargs):
     return output
 
 
-def readtiff(fn):
-    """read tiff file and get pixel dimension
+def readtiff_with_metadata(fn):
+    """read tiff file and returns pixel and imagej metadata
 
     Args:
-        fn (str): tif image filename
+        fn (str or Path): filename or Path object to image file
 
     Returns:
-        numpy array
+        image (numpy array), (xres, yres), dictionary of imageJ metadata
+
     """
     data = tifffile.imread(fn)
     with tifffile.TiffFile(fn) as tif:
         page = tif.pages[0]
-        xres = page.tags["XResolution"].value
-        dx = xres[1] / xres[0]
-        unit = page.tags["ResolutionUnit"].value
-    return data, dx, unit
+        xres = (
+            page.tags["XResolution"].value[1]
+            / page.tags["XResolution"].value[0]
+        )
+        yres = (
+            page.tags["YResolution"].value[1]
+            / page.tags["YResolution"].value[0]
+        )
+        imagej_metadata = tif.imagej_metadata
+    return data, (xres, yres), imagej_metadata
 
 
-def writetiff(fn, arr, dxy):
-    """save array as tiff file with a given pixel size in micron
+def writetiff_with_metadata(fn, arr, xyres, metadata):
+    """write array as an imageJ tif file with metadata
 
     Args:
-        fn (str): filename
-        arr (numpy nd-array): numpy array to be saved as tif file. Float64 data not supported
-        dxy (float): pixel size in micron
+        fn (str or Path): filename or Path for saved image
+        arr (numpy array): image data to be saved
+        xyres (tuple of floats): pixel size in x and y (x,y). Must be in units of 'micron'
+        metadata (dict): dictionary containing imageJ metadata. 'min' and 'max' key will be added
+        for image display in imageJ.
+
+    Returns:
+        None
 
     """
+    # float32 type is not JSON serializable, convert to native float(64)
+    metadata["min"] = float(arr.min())
+    metadata["max"] = float(arr.max())
+    metadata["axes"] = "TYX"
     tifffile.imwrite(
         fn,
         arr,
-        resolution=(1 / dxy, 1 / dxy, 5),
         imagej=True,
-        metadata={"unit": "um", "axes": "TYX"},
+        resolution=(1 / xyres[0], 1 / xyres[1], 5),
+        metadata=metadata,
     )
