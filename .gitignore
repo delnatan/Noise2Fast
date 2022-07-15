@@ -1,6 +1,7 @@
 __pycache__/
 **/__pycache__/
 *.py[cod]
+.vscode/
 
 # MacOS folders
 **/.DS_Store
