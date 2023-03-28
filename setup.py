@@ -13,5 +13,10 @@ setup(
 		"tifffile",
 		"tqdm"
     ],
+    entry_points={
+	    "console_scripts": [
+		    "n2f = Noise2Fast.n2f:main",
+	    ],
+    },
 )
 
