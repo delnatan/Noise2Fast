@@ -2,7 +2,7 @@ import argparse
 import torch
 from tqdm import tqdm
 from tifffile import imread, imwrite
-from core import denoise_stack, readtiff_with_metadata, writetiff_with_metadata
+from .core import denoise_stack, readtiff_with_metadata, writetiff_with_metadata
 from pathlib import Path
 
 
