@@ -8,6 +8,9 @@ import tifffile
 from tqdm import tqdm
 
 
+EPS = torch.tensor(1e-6)
+
+
 class DoubleConv(nn.Module):
     """double 2d convolution with 3x3 kernel size"""
 
@@ -34,6 +37,7 @@ class Denoiser(nn.Module):
         self.conv3 = DoubleConv(64, 64)
         self.conv4 = DoubleConv(64, 64)
         self.outconv = nn.Conv2d(64, 1, 1)
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.conv1(x)
@@ -41,30 +45,151 @@ class Denoiser(nn.Module):
         x = self.conv3(x)
         x = self.conv4(x)
         x = self.outconv(x)
+        x = self.sigmoid(x)
         return x
 
 
+class PoissonMLE(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, inputs, targets):
+        x = torch.maximum(inputs, EPS)
+        y = torch.maximum(targets, EPS)
+        arg = x - y - y * torch.log(x/y)
+        return torch.sum(arg)
+
+
 def even_odd_downsize(img):
-
     Ny, Nx = img.shape
-
     if Ny % 2 == 1:
         Ny -= 1
     if Nx % 2 == 1:
         Nx -= 1
-
     # halved row, "squeeze up"
     row_even_img = img[0:Ny:2, :]
     row_odd_img = img[1:Ny:2, :]
-
     # halved column, "squeeze left"
     col_even_img = img[:, 0:Nx:2]
     col_odd_img = img[:, 1:Nx:2]
-
     return (row_even_img[None, None, :, :], row_odd_img[None, None, :, :]), (
         col_even_img[None, None, :, :],
         col_odd_img[None, None, :, :],
     )
+
+
+def sparse_hessian_regularizer(x):
+    Dy, Dx = torch.gradient(x, dim=(-2, -1))
+    Dyy, Dyx = torch.gradient(Dy, dim=(-2, -1))
+    Dxy, Dxx = torch.gradient(Dx, dim=(-2, -1))
+    return torch.sum(
+        torch.abs(Dyy) + torch.abs(Dxx) + torch.abs(Dxy) + torch.abs(Dyx)
+    )
+
+
+def pos_neg_entropy(x, m=1.0):
+    Dy, Dx = torch.gradient(x, dim=(-2, -1))
+    psi_y = torch.sqrt(Dy * Dy + 4 * m**2)
+    psi_x = torch.sqrt(Dx * Dx + 4 * m**2)
+    s_y = psi_y - 2*m - Dy * torch.log((psi_y + Dy)/(2*m))
+    s_x = psi_x - 2*m - Dx * torch.log((psi_x + Dx)/(2*m))
+    return torch.sum(s_y) + torch.sum(s_x)
+
+
+def ER_penalty(x):
+    Dy, Dx = torch.gradient(x, dim=(-2, -1))
+    Dyy, Dyx = torch.gradient(Dy, dim=(-2, -1))
+    Dxy, Dxx = torch.gradient(Dx, dim=(-2, -1))
+    arg = x*x + Dyy*Dyy + Dxx*Dxx + Dxy*Dxy + Dyx*Dyx
+    return torch.sum(torch.log(arg + 1e-7))
+
+
+def denoise_frame_ptype(
+        input_frame: torch.Tensor,
+        max_iter: int = 100,
+        regularization_weight: int = 0,
+        patience: int = 10,
+        reltol: int = 1e-4,
+) -> np.array:
+
+    # normalize input image
+    img_max = input_frame.max()
+    img_min = input_frame.min()
+    img_range = img_max - img_min
+    normimg = (input_frame - img_min) / img_range
+
+    # generate downsized pairs of images
+    squeeze_up_pair, squeeze_left_pair = even_odd_downsize(normimg)
+
+    # define neural net
+    model = Denoiser()
+    model.to(input_frame.device)
+
+    poisson_loss = PoissonMLE()
+    # bce_loss = nn.BCELoss(reduction="sum")
+    # mse_loss = nn.MSELoss(reduction="sum")
+    optimizer = optim.Adam(model.parameters())
+
+    random_index = [0, 1]
+    niter = 0
+    counter = 0
+    mse_list = []
+    train_loss = []
+    previous_loss = None
+
+    while niter < max_iter:
+        niter += 1
+        # choose working data from downsized pair
+        data = random.choice([squeeze_up_pair, squeeze_left_pair])
+        random.shuffle(random_index)
+
+        input_image = data[random_index[0]]
+        target_image = data[random_index[1]]
+
+        # loss = poisson_loss(model(input_image), target_image)
+        output = model(input_image)
+        loss = poisson_loss(output, target_image)
+
+        if regularization_weight > 1e-8:
+            # add regularizer to `loss`
+            # pen1 = sparse_hessian_regularizer(output)
+            # pen1 = pos_neg_entropy(output, m=1.0)
+            pen1 = ER_penalty(output)
+            loss += regularization_weight * pen1
+
+        current_loss = loss.item()
+        train_loss.append(current_loss)
+
+        # update network parameters
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        # validation step
+        with torch.no_grad():
+            output_image = model(normimg[None, None, :, :])
+            mse = torch.mean((normimg - output_image)**2)
+            mse_list.append(mse.cpu().numpy())
+
+        # compute convergence
+        if previous_loss is not None:
+            relative_loss = abs(current_loss - previous_loss) / abs(previous_loss)
+            print(f"\r (iter {niter:d}) rel_loss = {relative_loss:12.5f}", end="")
+            if relative_loss < reltol:
+                counter += 0
+                if counter >= patience:
+                    print("No more improvements. Stopping iteration")
+                    break
+            else:
+                counter = 0
+
+        previous_loss = current_loss
+
+    # create new line
+    print("")
+    clean_image = output_image * img_range + img_min
+
+    return clean_image.cpu().squeeze().numpy(), mse_list, train_loss
 
 
 def denoise_frame(
@@ -112,9 +237,6 @@ def denoise_frame(
 
         optimizer.zero_grad()
 
-        # compute network prediction
-        result = nnet(inputimg)
-
         # compute loss
         loss = criterion(nnet(inputimg), labelimg)
 
@@ -156,7 +278,7 @@ def denoise_frame(
     return avgcleaned
 
 
-def denoise_stack(input_stack, device, **kwargs):
+def denoise_stack(input_stack, device, last_n_frames=100, verbose=False):
     """denoise n-D image assuming the last two dimensions are rows and columns
 
     Args:
@@ -172,14 +294,15 @@ def denoise_stack(input_stack, device, **kwargs):
 
     # assume that the last two axes are for the Row x Column of 2d images
     for nonsliceidx in tqdm(np.ndindex(inputshape[:-2]), total=Nstacks):
-        # print(f"denoising ==> {100.0 * (n+1) / Nstacks: 0.2f}%...")
         idxslices = nonsliceidx + (
             slice(None),
             slice(None),
         )
         slice2d = input_stack[idxslices].astype(np.float32)
         wrkframe = torch.from_numpy(slice2d).to(device)
-        output[idxslices] = denoise_frame(wrkframe)
+        output[idxslices] = denoise_frame(wrkframe,
+                                          last_n_frames=last_n_frames,
+                                          verbose=verbose)
 
     print("")
     return output

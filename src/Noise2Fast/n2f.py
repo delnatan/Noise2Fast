@@ -35,6 +35,10 @@ def main():
         help="Name of folder where denoised images will be saved inside input_folder",
     )
 
+    output_args.add_argument(
+        "--verbose", action="store_true",
+    )
+
     args = parser.parse_args()
 
     inputfolder = Path(args.input_folder)
@@ -53,14 +57,20 @@ def main():
     for f in tqdm(flist):
         input_image, xyres, imagej_metadata = readtiff_with_metadata(f)
         denoised = denoise_stack(
-            input_image, device, last_n_frames=args.n_postvalidation_frames
+            input_image, device,
+            last_n_frames=args.n_postvalidation_frames,
+            verbose=args.verbose
         )
-        writetiff_with_metadata(
-            outputfolder / f"{f.stem}_denoised.tif",
-            denoised,
-            xyres,
-            imagej_metadata,
-        )
+        if imagej_metadata:
+            writetiff_with_metadata(
+                outputfolder / f"{f.stem}_denoised.tif",
+                denoised,
+                xyres,
+                imagej_metadata,
+            )
+        else:
+            imwrite(outputfolder / f"{f.stem}_denoised.tif",
+                    denoised)
 
 
 if __name__ == "__main__":
